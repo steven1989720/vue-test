@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vue SPA</title>
+<!-- 
+  Ваша задача во Vue:
+  разработать одностраничное приложение SPA, состоящее из одного экрана:
+  - Вертикальный список с произвольным количеством элементов (более 100).
+  - В каждом элементе вертикального списка находится горизонтальный список с произвольным количеством элементов (более 10).
+  Каждая ячейка представляет собой квадрат с границей и закругленными углами (произвольный радиус), отображающий случайное число.
+  При наведении курсора на квадрат он должен анимированно уменьшаться на 20% (уменьшение при наведении, если курсор выходит за границы, он возвращается к предыдущему размеру).
+  Одно случайное число обновляется раз в секунду во всех горизонтальных списках (только в видимой области).
+  Рекомендации - обратите внимание на производительность решения!
+-->
+<style>
+  #app {
+    display: flex;
+    flex-direction: column;
+    align-items: left;
+  }
+  .vertical-row {
+    display: flex;
+  }
+  .cell {
+    width: 50px;
+    height: 50px;
+    border: 1px solid black;
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 2px;
+    transition: transform 0.3s ease;
+  }
+  .cell:hover {
+    transform: scale(0.8);
+  }
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 1);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Ensure it's above other content */
+  }
+  [v-cloak] {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <!-- Full-page loading overlay -->
+  <div v-show="loading" class="loading-overlay">Loading...</div>
+
+  <!-- Your app's content -->
+  <div v-if="!loading">
+    <div v-for="row in verticalList" :key="row.id" :id="row.id" class="vertical-row">
+      <div
+        v-for="cell in row.cells"
+        :key="cell.id"
+        :id="cell.id"
+        class="cell"
+      >
+        {{ cell.number }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.15/lodash.min.js"></script>
+
+<script>
+  let bRenderUpdated = false;
+  const MAX_COLUMN_COUNT = 100, FORMAL_ROW_COUNT = 100, UPDATE_MILLISECONDS = 1000;
+
+  function isElementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.top <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.left <= (window.innerWidth || document.documentElement.clientWidth)
+    ) ||
+    (
+      rect.bottom >= 0 &&
+      rect.right >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+  }
+
+  const { createApp, ref, onMounted, onBeforeUnmount } = Vue;
+
+  createApp({
+    setup() {
+      const verticalList = ref([]);
+      const renderList = [];
+
+      const loading = ref(true); // Make loading a reactive reference
+
+      const generateRandomNumber = () => Math.floor(Math.random() * 100);
+
+      const createCell = (rowId, index) => ({
+        id: rowId * MAX_COLUMN_COUNT + index,
+        number: generateRandomNumber(),
+        transform: 'scale(1)'
+      });
+
+      const createRow = (_, rowIndex) => {
+        const rowId = rowIndex + 1;
+        return {
+          id: rowId,
+          cells: Array.from({ length: 10 + Math.floor(Math.random() * 5) }, (_, cellIndex) => createCell(rowId, cellIndex + 1))
+        };
+      };
+
+      // Define the function you want to debounce
+      function markVisibleCellFunction() {
+        bRenderUpdated = true;
+        renderList.length = 0;
+
+        let bFound = false;
+
+        const rows = document.querySelectorAll('.vertical-row');
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (isElementInViewport(row)) {
+            bFound = true;
+
+            const vueRow = verticalList.value.find(r => r.id == row.id);
+            if (vueRow){
+              const cells = row.querySelectorAll('.cell');
+              cells.forEach(cell => {
+                if (cell && isElementInViewport(cell)){
+                  const vueCell = vueRow.cells.find(c => c.id == cell.id);
+                  if (vueCell) {
+                    renderList.push(vueCell);
+                  }
+                }
+              });
+            }
+          }else if (bFound){
+            break;
+          }
+        }
+      }
+
+      // Create a debounced version of the function
+      var updateCellVisibility = _.debounce(markVisibleCellFunction, 200); // Waits 0.2 seconds before executing
+
+      onMounted(() => {
+        verticalList.value = Array.from({ length: FORMAL_ROW_COUNT + Math.floor(Math.random() * FORMAL_ROW_COUNT / 2) }, createRow);
+        let totalCellCount = 0;
+
+        // verticalList.value.forEach(row=>{
+        //   totalCellCount += row.cells.length;
+        // });
+        // console.log(`create ${totalCellCount} cells`);
+
+        function updateRenderCells(){
+          if (!bRenderUpdated)
+            markVisibleCellFunction();
+
+          let visibleCellCount = 0;
+          // const cells = document.querySelectorAll('.render-update');
+          // cells.forEach(cell => {
+          //   const row = verticalList.value.find(row => row.cells.some(c => c.id == cell.id));
+          //   if (row){
+          //     const vueCell = verticalList.value.find(row => row.cells.some(c => c.id == cell.id)).cells.find(c => c.id == cell.id);
+          //     if (vueCell) {
+          //       vueCell.number = generateRandomNumber();
+          //       visibleCellCount ++;
+          //     }
+          //   }
+          // });
+
+          if (renderList && renderList.length){
+            renderList.forEach(vueCell => {
+              if (vueCell) {
+                vueCell.number = generateRandomNumber();
+                visibleCellCount ++;
+              }
+            })
+          }
+          // console.log(`visible ${visibleCellCount} cells`);
+
+          setTimeout(updateRenderCells, UPDATE_MILLISECONDS);
+        }
+
+        setTimeout(updateRenderCells, UPDATE_MILLISECONDS);
+
+        loading.value = false; // Correctly update the loading state
+
+        // Add event listeners
+        window.addEventListener('scroll', updateCellVisibility);
+        window.addEventListener('resize', updateCellVisibility);
+      });
+
+      onBeforeUnmount(() => {
+        // Remove event listeners
+        window.removeEventListener('scroll', updateCellVisibility);
+        window.removeEventListener('resize', updateCellVisibility);
+      });
+
+      return {
+        verticalList,
+        loading
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
