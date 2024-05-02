@@ -1,6 +1,6 @@
 <template>
     <div
-      class="cell"
+      :class="{ 'cell': true, 'blink': blinking }"
       :style="{ transform: isHovered ? 'scale(0.8)' : 'scale(1)' }"
       @mouseover="isHovered = true"
       @mouseleave="isHovered = false"
@@ -12,11 +12,12 @@
   <script>
   export default {
     props: {
-      number: Number
+      number: Number,
+      blinking: Boolean
     },
     data() {
       return {
-        isHovered: false
+        isHovered: false,
       };
     }
   };
@@ -34,5 +35,15 @@
     margin: 2px;
     transition: transform 0.3s ease;
   }
+
+  @keyframes blink-animation {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: yellow; } /* Change to desired blink color */
+  }
+
+  .blink {
+    animation: blink-animation 1s steps(1, end) infinite;
+  }
+
   </style>
   

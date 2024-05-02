@@ -7,6 +7,7 @@
     <div v-if="!loading">
       <div v-for="row in verticalList" :key="row.id" :id="row.id" class="vertical-row">
         <OneCell v-for="cell in row.cells" :key="cell.id" :id="cell.id" :number="cell.number"
+        :blinking="cell.blinking"
         />
       </div>
     </div>
@@ -46,7 +47,8 @@
   }
 
   const verticalList = ref([]);
-    const renderList = [];
+    // const renderList = [];
+    let visibleFirstRow = -1, visibleLastRow = -1;
 
     const loading = ref(true);
 
@@ -55,6 +57,7 @@
     const createCell = (rowId, index) => ({
       id: rowId * MAX_COLUMN_COUNT + index,
       number: generateRandomNumber(),
+      blinking: false,
       transform: 'scale(1)'
     });
 
@@ -68,31 +71,37 @@
 
     function markVisibleCellFunction() {
       bRenderUpdated = true;
-      renderList.length = 0;
-
-      let bFound = false;
+      // renderList.length = 0;
+      // let bFound = false;
+      visibleFirstRow = visibleLastRow = -1;
 
       const rows = document.querySelectorAll('.vertical-row');
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        if (isElementInViewport(row)) {
-          bFound = true;
+        // if (isElementInViewport(row)) {
+        //   bFound = true;
+        //   const vueRow = verticalList.value.find(r => r.id == row.id);
+        //   if (vueRow){
+        //     const cells = row.querySelectorAll('.cell');
+        //     cells.forEach(cell => {
+        //       if (cell && isElementInViewport(cell)){
+        //         const vueCell = vueRow.cells.find(c => c.id == cell.id);
+        //         if (vueCell) {
+        //           renderList.push(vueCell);
+        //         }
+        //       }
+        //     });
+        //   }
+        // }else if (bFound){
+        //   break;
+        // }
 
-          const vueRow = verticalList.value.find(r => r.id == row.id);
-          if (vueRow){
-            const cells = row.querySelectorAll('.cell');
-            cells.forEach(cell => {
-              if (cell && isElementInViewport(cell)){
-                const vueCell = vueRow.cells.find(c => c.id == cell.id);
-                if (vueCell) {
-                  renderList.push(vueCell);
-                }
-              }
-            });
-          }
-        }else if (bFound){
+        if (isElementInViewport(row)){
+          if (visibleFirstRow < 0)
+            visibleFirstRow = i;
+          visibleLastRow = i;
+        }else if (visibleFirstRow >= 0)
           break;
-        }
       }
     }
 
@@ -108,15 +117,26 @@
 
         // let visibleCellCount = 0;
 
-        if (renderList && renderList.length){
-          renderList.forEach(vueCell => {
-            if (vueCell) {
-              vueCell.number = generateRandomNumber();
-              // visibleCellCount++;
-            }
-          });
-        }
+        // if (renderList && renderList.length){
+        //   renderList.forEach(vueCell => {
+        //     if (vueCell) {
+        //       vueCell.number = generateRandomNumber();
+        //       // visibleCellCount++;
+        //     }
+        //   });
+        // }
         // console.log(`update ${visibleCellCount}`);
+
+        if (visibleFirstRow >= 0){
+          for (let index = visibleFirstRow; index <= visibleLastRow; index++) {
+            const row = verticalList.value[index];
+            const cellIndex = Math.floor(Math.random() * row.cells.length);
+            const cell = row.cells[cellIndex];
+            cell.number = generateRandomNumber();
+            cell.blinking = true;
+            setTimeout(() => {cell.blinking = false;}, 1000); // Blink duration
+          }
+        }
 
         setTimeout(updateRenderCells, UPDATE_MILLISECONDS);
       }
